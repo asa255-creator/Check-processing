@@ -62,11 +62,19 @@ function extractFolderId(input) {
 // Main function to process all PDFs in the folder
 function processCheckFolder(folderId, method) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ui = SpreadsheetApp.getUi();
 
   try {
     const folder = DriveApp.getFolderById(folderId);
     const files = folder.getFilesByType(MimeType.PDF);
+
+    // Count total files first
+    const fileList = [];
+    while (files.hasNext()) {
+      fileList.push(files.next());
+    }
+    const totalFiles = fileList.length;
 
     // Set up headers
     setupHeaders(sheet);
@@ -76,8 +84,11 @@ function processCheckFolder(folderId, method) {
     let errorCount = 0;
     let errors = [];
 
-    while (files.hasNext()) {
-      const file = files.next();
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+
+      // Show progress toast
+      ss.toast(`Processing ${i + 1} of ${totalFiles}: ${file.getName()}`, 'Progress', 3);
 
       try {
         const checkData = method === 'ocrspace' ? extractCheckDataOCRSpace(file) : extractCheckDataDrive(file);
@@ -97,6 +108,11 @@ function processCheckFolder(folderId, method) {
         Logger.log('Error processing file ' + file.getName() + ': ' + error.message);
         errors.push(file.getName() + ': ' + error.message);
         errorCount++;
+      }
+
+      // Wait between files to avoid rate limits (2 seconds for Drive, 1 second for OCR.space)
+      if (i < fileList.length - 1) {
+        Utilities.sleep(method === 'drive' ? 2000 : 1000);
       }
     }
 
