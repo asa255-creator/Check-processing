@@ -7,12 +7,23 @@
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Check Processor')
-    .addItem('Process Check PDFs', 'showFolderDialog')
+    .addItem('Process with OCR.space (better quality)', 'showFolderDialogOCRSpace')
+    .addItem('Process with Google Drive (no API key)', 'showFolderDialogDrive')
     .addToUi();
 }
 
+// Show dialog for OCR.space method
+function showFolderDialogOCRSpace() {
+  showFolderDialog('ocrspace');
+}
+
+// Show dialog for Drive method
+function showFolderDialogDrive() {
+  showFolderDialog('drive');
+}
+
 // Show dialog to get folder URL/ID
-function showFolderDialog() {
+function showFolderDialog(method) {
   const ui = SpreadsheetApp.getUi();
   const response = ui.prompt(
     'Process Check PDFs',
@@ -25,7 +36,7 @@ function showFolderDialog() {
     const folderId = extractFolderId(input);
 
     if (folderId) {
-      processCheckFolder(folderId);
+      processCheckFolder(folderId, method);
     } else {
       ui.alert('Error', 'Invalid folder URL or ID. Please try again.', ui.ButtonSet.OK);
     }
@@ -49,7 +60,7 @@ function extractFolderId(input) {
 }
 
 // Main function to process all PDFs in the folder
-function processCheckFolder(folderId) {
+function processCheckFolder(folderId, method) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const ui = SpreadsheetApp.getUi();
 
@@ -69,7 +80,7 @@ function processCheckFolder(folderId) {
       const file = files.next();
 
       try {
-        const checkData = extractCheckData(file);
+        const checkData = method === 'ocrspace' ? extractCheckDataOCRSpace(file) : extractCheckDataDrive(file);
 
         if (checkData) {
           sheet.getRange(rowIndex, 1, 1, 5).setValues([[
@@ -118,7 +129,7 @@ function setupHeaders(sheet) {
 }
 
 // Extract check data from PDF using OCR.space API
-function extractCheckData(file) {
+function extractCheckDataOCRSpace(file) {
   const apiKey = PropertiesService.getScriptProperties().getProperty('OCR_API_KEY');
 
   if (!apiKey) {
@@ -155,6 +166,55 @@ function extractCheckData(file) {
   }
 
   const text = result.ParsedResults[0].ParsedText;
+  return parseCheckText(text);
+}
+
+// Extract check data from PDF using Google Drive OCR
+function extractCheckDataDrive(file) {
+  const blob = file.getBlob();
+
+  // Use Drive API v2 REST endpoint for OCR conversion
+  const metadata = {
+    title: file.getName().replace('.pdf', '_temp'),
+    mimeType: 'application/vnd.google-apps.document'
+  };
+
+  const boundary = '-------314159265358979323846';
+  const delimiter = '\r\n--' + boundary + '\r\n';
+  const closeDelimiter = '\r\n--' + boundary + '--';
+
+  const requestBody =
+    delimiter +
+    'Content-Type: application/json\r\n\r\n' +
+    JSON.stringify(metadata) +
+    delimiter +
+    'Content-Type: application/pdf\r\n' +
+    'Content-Transfer-Encoding: base64\r\n\r\n' +
+    Utilities.base64Encode(blob.getBytes()) +
+    closeDelimiter;
+
+  const response = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=en',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + ScriptApp.getOAuthToken(),
+        'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+      },
+      payload: requestBody
+    }
+  );
+
+  const result = JSON.parse(response.getContentText());
+  const docId = result.id;
+
+  // Get the text content
+  const doc = DocumentApp.openById(docId);
+  const text = doc.getBody().getText();
+
+  // Delete the temporary document
+  DriveApp.getFileById(docId).setTrashed(true);
+
   return parseCheckText(text);
 }
 
