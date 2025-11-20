@@ -175,8 +175,7 @@ function extractCheckDataDrive(file) {
 
   // Use Drive API v2 REST endpoint for OCR conversion
   const metadata = {
-    title: file.getName().replace('.pdf', '_temp'),
-    mimeType: 'application/vnd.google-apps.document'
+    title: file.getName().replace('.pdf', '_temp')
   };
 
   const boundary = '-------314159265358979323846';
@@ -194,7 +193,7 @@ function extractCheckDataDrive(file) {
     closeDelimiter;
 
   const response = UrlFetchApp.fetch(
-    'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=en',
+    'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=en&convert=true',
     {
       method: 'POST',
       headers: {
