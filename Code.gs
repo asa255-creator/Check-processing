@@ -121,22 +121,47 @@ function setupHeaders(sheet) {
 function extractCheckData(file) {
   const blob = file.getBlob();
 
-  // Convert PDF to Google Doc with OCR enabled (Drive API v3)
-  const resource = {
-    name: file.getName().replace('.pdf', '_temp'),
-    mimeType: MimeType.GOOGLE_DOCS
+  // Use Drive API v2 REST endpoint for reliable OCR conversion
+  const metadata = {
+    title: file.getName().replace('.pdf', '_temp'),
+    mimeType: 'application/vnd.google-apps.document'
   };
 
-  const docFile = Drive.Files.create(resource, blob, {
-    ocrLanguage: 'en'
-  });
+  const boundary = '-------314159265358979323846';
+  const delimiter = '\r\n--' + boundary + '\r\n';
+  const closeDelimiter = '\r\n--' + boundary + '--';
+
+  const requestBody =
+    delimiter +
+    'Content-Type: application/json\r\n\r\n' +
+    JSON.stringify(metadata) +
+    delimiter +
+    'Content-Type: application/pdf\r\n' +
+    'Content-Transfer-Encoding: base64\r\n\r\n' +
+    Utilities.base64Encode(blob.getBytes()) +
+    closeDelimiter;
+
+  const response = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=en',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + ScriptApp.getOAuthToken(),
+        'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+      },
+      payload: requestBody
+    }
+  );
+
+  const result = JSON.parse(response.getContentText());
+  const docId = result.id;
 
   // Get the text content
-  const doc = DocumentApp.openById(docFile.id);
+  const doc = DocumentApp.openById(docId);
   const text = doc.getBody().getText();
 
   // Delete the temporary document
-  DriveApp.getFileById(docFile.id).setTrashed(true);
+  DriveApp.getFileById(docId).setTrashed(true);
 
   // Parse the text to extract check information
   return parseCheckText(text);
