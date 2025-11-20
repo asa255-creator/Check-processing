@@ -117,53 +117,44 @@ function setupHeaders(sheet) {
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
 }
 
-// Extract check data from PDF using Drive's built-in OCR
+// Extract check data from PDF using OCR.space API
 function extractCheckData(file) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('OCR_API_KEY');
+
+  if (!apiKey) {
+    throw new Error('OCR API key not set. Go to Project Settings > Script Properties and add OCR_API_KEY');
+  }
+
   const blob = file.getBlob();
+  const base64 = Utilities.base64Encode(blob.getBytes());
 
-  // Use Drive API v2 REST endpoint for reliable OCR conversion
-  const metadata = {
-    title: file.getName().replace('.pdf', '_temp'),
-    mimeType: 'application/vnd.google-apps.document'
-  };
-
-  const boundary = '-------314159265358979323846';
-  const delimiter = '\r\n--' + boundary + '\r\n';
-  const closeDelimiter = '\r\n--' + boundary + '--';
-
-  const requestBody =
-    delimiter +
-    'Content-Type: application/json\r\n\r\n' +
-    JSON.stringify(metadata) +
-    delimiter +
-    'Content-Type: application/pdf\r\n' +
-    'Content-Transfer-Encoding: base64\r\n\r\n' +
-    Utilities.base64Encode(blob.getBytes()) +
-    closeDelimiter;
-
-  const response = UrlFetchApp.fetch(
-    'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart&ocr=true&ocrLanguage=en',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + ScriptApp.getOAuthToken(),
-        'Content-Type': 'multipart/related; boundary="' + boundary + '"'
-      },
-      payload: requestBody
+  const response = UrlFetchApp.fetch('https://api.ocr.space/parse/image', {
+    method: 'POST',
+    headers: {
+      'apikey': apiKey
+    },
+    payload: {
+      'base64Image': 'data:application/pdf;base64,' + base64,
+      'language': 'eng',
+      'isOverlayRequired': false,
+      'filetype': 'PDF',
+      'detectOrientation': true,
+      'scale': true,
+      'OCREngine': 2
     }
-  );
+  });
 
   const result = JSON.parse(response.getContentText());
-  const docId = result.id;
 
-  // Get the text content
-  const doc = DocumentApp.openById(docId);
-  const text = doc.getBody().getText();
+  if (result.IsErroredOnProcessing) {
+    throw new Error(result.ErrorMessage || 'OCR processing failed');
+  }
 
-  // Delete the temporary document
-  DriveApp.getFileById(docId).setTrashed(true);
+  if (!result.ParsedResults || result.ParsedResults.length === 0) {
+    throw new Error('No text detected');
+  }
 
-  // Parse the text to extract check information
+  const text = result.ParsedResults[0].ParsedText;
   return parseCheckText(text);
 }
 
