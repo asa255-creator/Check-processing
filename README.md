@@ -6,18 +6,10 @@ Extracts check information (name, amount, date, check number) from PDFs in a Goo
 
 1. Open Google Sheets and go to **Extensions > Apps Script**
 2. Copy the contents of `Code.gs` into the script editor
-3. Set up Google Cloud Vision API:
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a project (or select existing)
-   - Enable the **Cloud Vision API**
-   - Go to **APIs & Services > Credentials**
-   - Create an **API Key**
-4. Add the API key to your script:
-   - In Apps Script, go to **Project Settings** (gear icon)
-   - Scroll to **Script Properties**
-   - Click **Add script property**
-   - Name: `VISION_API_KEY`, Value: your API key
-5. Save the project and reload your spreadsheet
+3. Enable the Drive API advanced service:
+   - In Apps Script editor, click **+** next to "Services" in left sidebar
+   - Select **Drive API** and click **Add**
+4. Save the project and reload your spreadsheet
 
 ## Usage
 

@@ -117,42 +117,30 @@ function setupHeaders(sheet) {
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
 }
 
-// Extract check data from PDF using Cloud Vision API
+// Extract check data from PDF using Drive's built-in OCR
 function extractCheckData(file) {
   const blob = file.getBlob();
-  const base64 = Utilities.base64Encode(blob.getBytes());
 
-  // Call Cloud Vision API for OCR
-  const apiKey = PropertiesService.getScriptProperties().getProperty('VISION_API_KEY');
-
-  if (!apiKey) {
-    throw new Error('Vision API key not set. Go to Project Settings > Script Properties and add VISION_API_KEY');
-  }
-
-  const requestBody = {
-    requests: [{
-      image: { content: base64 },
-      features: [{ type: 'TEXT_DETECTION' }]
-    }]
+  // Convert PDF to Google Doc with OCR enabled
+  const resource = {
+    title: file.getName().replace('.pdf', '_temp'),
+    mimeType: MimeType.GOOGLE_DOCS
   };
 
-  const response = UrlFetchApp.fetch(
-    'https://vision.googleapis.com/v1/images:annotate?key=' + apiKey,
-    {
-      method: 'POST',
-      contentType: 'application/json',
-      payload: JSON.stringify(requestBody)
-    }
-  );
+  const docFile = Drive.Files.insert(resource, blob, {
+    ocr: true,
+    ocrLanguage: 'en'
+  });
 
-  const result = JSON.parse(response.getContentText());
+  // Get the text content
+  const doc = DocumentApp.openById(docFile.id);
+  const text = doc.getBody().getText();
 
-  if (result.responses && result.responses[0] && result.responses[0].textAnnotations) {
-    const text = result.responses[0].textAnnotations[0].description;
-    return parseCheckText(text);
-  }
+  // Delete the temporary document
+  DriveApp.getFileById(docFile.id).setTrashed(true);
 
-  throw new Error('No text detected in image');
+  // Parse the text to extract check information
+  return parseCheckText(text);
 }
 
 // Parse extracted text to find check details
