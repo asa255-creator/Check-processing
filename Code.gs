@@ -63,6 +63,7 @@ function processCheckFolder(folderId) {
     let rowIndex = 2; // Start after header row
     let processedCount = 0;
     let errorCount = 0;
+    let errors = [];
 
     while (files.hasNext()) {
       const file = files.next();
@@ -83,6 +84,7 @@ function processCheckFolder(folderId) {
         }
       } catch (error) {
         Logger.log('Error processing file ' + file.getName() + ': ' + error.message);
+        errors.push(file.getName() + ': ' + error.message);
         errorCount++;
       }
     }
@@ -92,11 +94,16 @@ function processCheckFolder(folderId) {
       sheet.getRange(2, 2, rowIndex - 2, 1).setNumberFormat('$#,##0.00');
     }
 
-    ui.alert(
-      'Processing Complete',
-      `Processed: ${processedCount} checks\nErrors: ${errorCount}`,
-      ui.ButtonSet.OK
-    );
+    // Show results with error details
+    let message = `Processed: ${processedCount} checks\nErrors: ${errorCount}`;
+    if (errors.length > 0) {
+      message += '\n\nFirst error:\n' + errors[0];
+      if (errors[0].includes('Drive') || errors[0].includes('not defined')) {
+        message += '\n\nTIP: Make sure you enabled the Drive API in Services (click + in left sidebar of Apps Script editor)';
+      }
+    }
+
+    ui.alert('Processing Complete', message, ui.ButtonSet.OK);
 
   } catch (error) {
     ui.alert('Error', 'Failed to access folder: ' + error.message, ui.ButtonSet.OK);
