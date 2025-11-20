@@ -121,14 +121,13 @@ function setupHeaders(sheet) {
 function extractCheckData(file) {
   const blob = file.getBlob();
 
-  // Convert PDF to Google Doc with OCR enabled
+  // Convert PDF to Google Doc with OCR enabled (Drive API v3)
   const resource = {
-    title: file.getName().replace('.pdf', '_temp'),
+    name: file.getName().replace('.pdf', '_temp'),
     mimeType: MimeType.GOOGLE_DOCS
   };
 
-  const docFile = Drive.Files.insert(resource, blob, {
-    ocr: true,
+  const docFile = Drive.Files.create(resource, blob, {
     ocrLanguage: 'en'
   });
 
